@@ -1,7 +1,7 @@
 
 # ---- Prepare the data (can skip without the csv file)-----------------------------------------------------
 getwd()
-setwd()
+# setwd()
 dir()
 
 db_new <- read.csv("DatabaseI&II_20180703.csv")
@@ -203,7 +203,7 @@ acc_sen.colors <- c(Unacc_cool="cornflowerblue", Acc_cool="lightblue1", Unacc_wa
 p1 <- ggplot(db, aes(Ta, order=Acc_sen))+ geom_bar(aes(fill=Acc_sen),  binwidth=1, position="fill", alpha=0.7) +
   # xlim(15,31)+
   theme(axis.text.x=element_text(size=7, hjust=0.6, colour="black"), panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_rect(fill='white',colour='black'))+
-  scale_fill_manual(values=acc_sen.colors) + ggtitle("Actual thermal acceptance-sensation response")
+  scale_fill_manual(values=acc_sen.colors) + ggtitle("Actual thermal acceptance-sensation response"); p1
 
 
 
@@ -217,10 +217,30 @@ require(Hmisc)
 require(reshape2)
 require(rms)
 
-model.olr.full <- polr(Acc_sen ~ Ta, data = db, 
-                       Hess = TRUE, method = "logistic")
+model.olr.full <- polr(Acc_sen ~ Ta, data = db, Hess = TRUE, method = "logistic")
 summary(model.olr.full)
 
+# Store table
+ctable <- coef(summary(model.olr.full))
+# p-value calculation
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+(ctable <- cbind(ctable, "p value" = p))
+# confidence interval
+ci <- confint(model.olr.full) # default method gives profiled CIs
+confint.default(model.olr.full) # CIs assuming normality
+
+## odds ratios
+exp(coef(model.olr.full))
+## OR and CI
+exp(cbind(OR = coef(model.olr.full), ci))
+
+## Create new dataset for simulation
+newdat <- data.frame(Ta = seq(15,35, by=0.1))
+newdat_1 <- cbind(newdat, predict(model.olr.full, newdat, type = "probs"))
+
+lnewdat <- melt(newdat_1, id.vars = c("Ta"), variable.name = "Level", value.name="Probability")
+head(lnewdat)
+p2 <- ggplot(lnewdat, aes(x = Ta, y = Probability, colour = Level)) + geom_line(); p2
 
 
 save.image(file = "TSV-ACC-model-image.RData")
