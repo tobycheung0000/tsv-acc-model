@@ -146,6 +146,16 @@ db_1 $cTSV <- as.numeric(as.character(db_1 $cTSV))
 db_1 $Sensation <- as.factor(as.character(db_1 $Sensation))
 db_1 $Acc_sen <- as.factor(as.character(db_1 $Acc_sen))
 
+db_1 <- transform(db_1,
+                Sensation = factor(
+                  Sensation, levels=c("Cold","Cool","S_cool","Neutral","S_warm","Warm","Hot"), ordered=TRUE),
+                Acc_sen = factor(
+                  Acc_sen, levels=c("Unacc_cool","Acc_cool","Acc_neu","Acc_warm","Unacc_warm"), ordered=TRUE))
+
+acc_sen.colors <- c(Unacc_cool="cornflowerblue", Acc_cool="lightblue1", Unacc_warm="brown", Acc_warm="lightpink", Acc_neu="palegreen")
+
+source("fixed-polr.R")
+
 save(db_1, file = "TSV-ACC-model.RData")
 
 
@@ -180,6 +190,8 @@ library(mgcv)
 library(caret)
 library(gridExtra)
 
+str(db_1)
+
 db <- db_1 %>%
   filter(Building == "Office") %>%
   # filter(Building == "Office"| Building == "Classroom"| Building == "Others") %>%
@@ -191,15 +203,6 @@ db <- db_1 %>%
 
 db <- subset(db, Acc_sen != "Unacc_neu")
 
-db <- transform(db,
-                Sensation = factor(
-                  Sensation, levels=c("Cold","Cool","S_cool","Neutral","S_warm","Warm","Hot"), ordered=TRUE),
-                Acc_sen = factor(
-                  Acc_sen, levels=c("Unacc_cool","Acc_cool","Acc_neu","Acc_warm","Unacc_warm"), ordered=TRUE)
-                )
-
-acc_sen.colors <- c(Unacc_cool="cornflowerblue", Acc_cool="lightblue1", Unacc_warm="brown", Acc_warm="lightpink", Acc_neu="palegreen")
-
 p1 <- ggplot(db, aes(Ta, order=Acc_sen))+ geom_bar(aes(fill=Acc_sen),  binwidth=1, position="fill", alpha=0.7) +
   # xlim(15,31)+
   theme(axis.text.x=element_text(size=7, hjust=0.6, colour="black"), panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_rect(fill='white',colour='black'))+
@@ -207,9 +210,7 @@ p1 <- ggplot(db, aes(Ta, order=Acc_sen))+ geom_bar(aes(fill=Acc_sen),  binwidth=
 
 
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Actual Ordinal logistic regression use in paper ----
+# ---- Actual Ordinal logistic regression use in paper (Ta) -----------------------------------------
 require(foreign)
 require(ggplot2)
 require(MASS)
@@ -220,27 +221,61 @@ require(rms)
 model.olr.full <- polr(Acc_sen ~ Ta, data = db, Hess = TRUE, method = "logistic")
 summary(model.olr.full)
 
-# Store table
-ctable <- coef(summary(model.olr.full))
-# p-value calculation
-p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2
+ctable <- coef(summary(model.olr.full)) # Store table
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2 # p-value calculation
 (ctable <- cbind(ctable, "p value" = p))
-# confidence interval
 ci <- confint(model.olr.full) # default method gives profiled CIs
 confint.default(model.olr.full) # CIs assuming normality
-
-## odds ratios
-exp(coef(model.olr.full))
-## OR and CI
-exp(cbind(OR = coef(model.olr.full), ci))
+exp(coef(model.olr.full)) ## odds ratios
+exp(cbind(OR = coef(model.olr.full), ci)) ## OR and CI
 
 ## Create new dataset for simulation
 newdat <- data.frame(Ta = seq(15,35, by=0.1))
 newdat_1 <- cbind(newdat, predict(model.olr.full, newdat, type = "probs"))
-
 lnewdat <- melt(newdat_1, id.vars = c("Ta"), variable.name = "Level", value.name="Probability")
 head(lnewdat)
 p2 <- ggplot(lnewdat, aes(x = Ta, y = Probability, colour = Level)) + geom_line(); p2
+
+
+# ---- POLR for Climate, Vent, Ta ---------------------------------------------------------
+db_cli_vent_Ta <- db_1 %>%
+  filter(Ta != "NA") %>%
+  filter(Acc_sen != "Unacc_neu")%>%
+  filter(Building == "Office") %>%
+  filter(Ventilation =="Air Conditioned" | Ventilation == "Naturally Ventilated") %>%
+  filter(Climate =="A" | Climate == "C")
+
+p3 <- ggplot(db_cli_vent_Ta, aes(Ta, order=Acc_sen))+ geom_bar(aes(fill=Acc_sen),  binwidth=1, position="fill", alpha=0.7) +
+  # xlim(15,31)+
+  theme(axis.text.x=element_text(size=7, hjust=0.6, colour="black"), panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_rect(fill='white',colour='black'))+
+  scale_fill_manual(values=acc_sen.colors) + ggtitle("Actual thermal acceptance-sensation response") +
+  facet_grid(Ventilation ~ Climate, labeller="label_both"); p3
+
+require(foreign)
+require(ggplot2)
+require(MASS)
+require(Hmisc)
+require(reshape2)
+require(rms)
+
+model.olr.2 <- polr(Acc_sen ~ Ta + Ventilation + Climate, data = db_cli_vent_Ta, Hess = TRUE, method = "logistic"); summary(model.olr.2)
+ctable <- coef(summary(model.olr.2)) # Store table
+p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2 # p-value calculation
+(ctable <- cbind(ctable, "p value" = p))
+ci <- confint(model.olr.2) # default method gives profiled CIs
+confint.default(model.olr.2) # CIs assuming normality
+exp(coef(model.olr.2)) ## odds ratios
+exp(cbind(OR = coef(model.olr.2), ci)) ## OR and CI
+## Create new dataset for simulation
+newdat <- data.frame(
+  Ventilation = rep(c("Air Conditioned","Naturally Ventilated"), 200),
+  Climate = rep(c("A","C"), each = 200),
+  Ta = rep(seq(from = 15, to = 35, length.out = 100), 4))
+newdat_1 <- cbind(newdat, predict(model.olr.2, newdat, type = "probs"))
+lnewdat <- melt(newdat_1, id.vars = c("Ta","Ventilation","Climate"), variable.name = "Level", value.name="Probability")
+head(lnewdat)
+p4 <- ggplot(lnewdat, aes(x = Ta, y = Probability, colour = Level)) + geom_line() +
+ facet_grid(Ventilation ~ Climate, labeller="label_both"); p4
 
 
 save.image(file = "TSV-ACC-model-image.RData")
