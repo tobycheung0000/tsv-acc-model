@@ -1,7 +1,7 @@
 
 # ---- Prepare the data (can skip without the csv file)-----------------------------------------------------
 getwd()
-# setwd()
+setwd()
 dir()
 
 db_new <- read.csv("DatabaseI&II_20180703.csv")
