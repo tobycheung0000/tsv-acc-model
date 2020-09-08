@@ -19,8 +19,8 @@ columns<-c("Database","Contributor","Country","Building","Ventilation","Koppen_o
 db_cor <- data.frame(db_new[,columns])
 
 # This is used for consistent the value variable style in number (easy for calculation)
-db_cor $TSV <- as.numeric(as.character(db_cor $TSV)) 
-db_cor $Acc <- as.numeric(as.character(db_cor $Acc))
+db_cor $TSV <- as.numeric(as.character(db_cor $TSV))
+db_cor $Acc <- as.factor(as.character(db_cor $Acc))
 db_cor $Country <- as.factor(as.character(db_cor $Country))
 db_cor $Contributor <- as.factor(as.character(db_cor $Contributor))
 db_cor $Ta <- as.numeric(as.character(db_cor $Ta))
@@ -45,9 +45,9 @@ db_cor <- subset(db_cor, subset = Acc != "NA")
 
 c <- nrow(db_cor) # Clean up the TSV value, some of them are between 1 and 2, e.g. 1.25
 cTSV <- matrix(NA,c,1)
-cPMV <- matrix(NA,c,1)
+# cPMV <- matrix(NA,c,1)
 Sensation <- matrix(NA,c,1)
-PMV_sen <- matrix(NA,c,1)
+# PMV_sen <- matrix(NA,c,1)
 Acc_sen <- matrix(NA,c,1)
 
 
@@ -83,40 +83,7 @@ for (i in 1:c) {
 }
 
 for (i in 1:c) {
-  if (db_cor$PMV[i] < -2.5){
-    cPMV[i] <- -3
-    PMV_sen[i] <- c("Cold")
-  }
-  else if (db_cor$PMV[i] < -1.5){
-    cPMV[i] <- -2
-    PMV_sen[i] <- c("Cool")
-  }
-  else if (db_cor$PMV[i] < -0.5){
-    cPMV[i] <- -1
-    PMV_sen[i] <- c("S_cool")
-  }
-  else if (db_cor$PMV[i] <= 0.5){
-    cPMV[i] <- 0
-    PMV_sen[i] <- c("Neutral")
-  }
-  else if (db_cor$PMV[i] <= 1.5){
-    cPMV[i] <- 1
-    PMV_sen[i] <- c("S_warm")
-  }
-  else if (db_cor$PMV[i] <= 2.5){
-    cPMV[i] <- 2
-    PMV_sen[i] <- c("Warm")
-  }
-  else if (db_cor$PMV[i] > 2.5){
-    cPMV[i] <- 3
-    PMV_sen[i] <- c("Hot")
-  }
-  print(i) 
-}
-
-
-for (i in 1:c) {
-  if (db_cor$Acc[i] < 0.5){
+  if (db_cor$Acc[i] == "0"){
     if (db_cor$TSV[i] < -1.5) {
       Acc_sen[i] <- c("Unacc_cool")
     }
@@ -127,7 +94,7 @@ for (i in 1:c) {
       Acc_sen[i] <- c("Unacc_warm")
     }
   }
-  else if (db_cor$Acc[i]  > 0.5){
+  else if (db_cor$Acc[i]  == "1"){
     if (db_cor$TSV[i]  < -1.5) {
       Acc_sen[i] <- c("Acc_cool")
     }
@@ -150,7 +117,7 @@ db_1 <- transform(db_1,
                 Sensation = factor(
                   Sensation, levels=c("Cold","Cool","S_cool","Neutral","S_warm","Warm","Hot"), ordered=TRUE),
                 Acc_sen = factor(
-                  Acc_sen, levels=c("Unacc_cool","Acc_cool","Acc_neu","Acc_warm","Unacc_warm"), ordered=TRUE))
+                  Acc_sen, levels=c("Unacc_cool","Acc_cool","Unacc_neu","Acc_neu","Acc_warm","Unacc_warm"), ordered=TRUE))
 
 source("fixed-polr.R")
 
@@ -160,7 +127,7 @@ save(db_1, file = "TSV-ACC-model.RData")
 
 # ---- Start analysis--------------------------------------------------------------------------------------
 getwd()
-# load("TSV-ACC-model.RData") # Load data only
+load("TSV-ACC-model.RData") # Load data only
 load("TSV-ACC-model-image.RData") # Load the entire image
 
 require(Rcpp)
@@ -197,14 +164,16 @@ db <- db_1 %>%
 # filter(Ventilation =="Mixed Mode")#Just try NV office here
   filter(Climate =="A")
 
-db <- subset(db, Acc_sen != "Unacc_neu")
+# db <- subset(db, Acc_sen != "Unacc_neu")
 
-acc_sen.colors <- c(Unacc_cool="cornflowerblue", Acc_cool="lightblue1", Unacc_warm="brown", Acc_warm="lightpink", Acc_neu="palegreen")
+ggplot(db, aes(x=Sensation)) + geom_bar(aes(fill=Acc))
+
+acc_sen.colors <- c(Unacc_cool="cornflowerblue", Acc_cool="lightblue1", Unacc_warm="brown", Acc_warm="lightpink", Acc_neu="palegreen", Unacc_neu="grey")
 p1 <- ggplot(db, aes(Ta, order=Acc_sen))+ geom_bar(aes(fill=Acc_sen),  binwidth=1, position="fill", alpha=0.7) +
-  # xlim(15,31)+
+  xlim(15,41)+
   theme(axis.text.x=element_text(size=7, hjust=0.6, colour="black"), panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_rect(fill='white',colour='black'))+
-  scale_fill_manual(values=acc_sen.colors) + ggtitle("Actual thermal acceptance-sensation response"); p1
-
+  scale_fill_manual(values=acc_sen.colors) + ggtitle("Actual thermal acceptance-sensation response")
+p1
 
 
 # ---- Actual Ordinal logistic regression use in paper (Ta) -----------------------------------------
@@ -215,6 +184,9 @@ require(Hmisc)
 require(reshape2)
 require(rms)
 
+db <- db %>%
+  filter(Ta != "NA") %>%
+  filter(Acc_sen != "Unacc_neu")
 model.olr.full <- polr(Acc_sen ~ Ta, data = db, Hess = TRUE, method = "logistic")
 summary(model.olr.full)
 
@@ -231,8 +203,8 @@ newdat <- data.frame(Ta = seq(15,35, by=0.1))
 newdat_1 <- cbind(newdat, predict(model.olr.full, newdat, type = "probs"))
 lnewdat <- melt(newdat_1, id.vars = c("Ta"), variable.name = "Level", value.name="Probability")
 head(lnewdat)
-p2 <- ggplot(lnewdat, aes(x = Ta, y = Probability, colour = Level)) + geom_line(); p2
-
+p2 <- ggplot(lnewdat, aes(x = Ta, y = Probability, colour = Level)) + geom_line()
+p2
 
 # ---- POLR for Climate, Vent, Ta ---------------------------------------------------------
 db_cli_vent_Ta <- db_1 %>%
@@ -246,7 +218,8 @@ p3 <- ggplot(db_cli_vent_Ta, aes(Ta, order=Acc_sen))+ geom_bar(aes(fill=Acc_sen)
   # xlim(15,31)+
   theme(axis.text.x=element_text(size=7, hjust=0.6, colour="black"), panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_rect(fill='white',colour='black'))+
   scale_fill_manual(values=acc_sen.colors) + ggtitle("Actual thermal acceptance-sensation response") +
-  facet_grid(Ventilation ~ Climate, labeller="label_both"); p3
+  facet_grid(Ventilation ~ Climate, labeller="label_both")
+p3
 
 require(foreign)
 require(ggplot2)
@@ -255,7 +228,8 @@ require(Hmisc)
 require(reshape2)
 require(rms)
 
-model.olr.2 <- polr(Acc_sen ~ Ta + Ventilation + Climate, data = db_cli_vent_Ta, Hess = TRUE, method = "logistic"); summary(model.olr.2)
+model.olr.2 <- polr(Acc_sen ~ Ta + Ventilation + Climate, data = db_cli_vent_Ta, Hess = TRUE, method = "logistic")
+summary(model.olr.2)
 ctable <- coef(summary(model.olr.2)) # Store table
 p <- pnorm(abs(ctable[, "t value"]), lower.tail = FALSE) * 2 # p-value calculation
 (ctable <- cbind(ctable, "p value" = p))
@@ -272,7 +246,8 @@ newdat_1 <- cbind(newdat, predict(model.olr.2, newdat, type = "probs"))
 lnewdat <- melt(newdat_1, id.vars = c("Ta","Ventilation","Climate"), variable.name = "Level", value.name="Probability")
 head(lnewdat)
 p4 <- ggplot(lnewdat, aes(x = Ta, y = Probability, colour = Level)) + geom_line() +
- facet_grid(Ventilation ~ Climate, labeller="label_both"); p4
+ facet_grid(Ventilation ~ Climate, labeller="label_both")
+p4
 
 
 save.image(file = "TSV-ACC-model-image.RData")
