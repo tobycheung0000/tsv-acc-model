@@ -127,6 +127,7 @@ save(db_1, file = "TSV-ACC-model.RData")
 
 # ---- Start analysis--------------------------------------------------------------------------------------
 getwd()
+setwd("C:/Users/user/Dropbox/2017-Toby Cheung/Research projects/TSV-ACC paper")
 load("TSV-ACC-model.RData") # Load data only
 load("TSV-ACC-model-image.RData") # Load the entire image
 
@@ -157,14 +158,13 @@ library(gridExtra)
 
 db <- db_1 %>%
   filter(Building == "Office") %>%
-  # filter(Building == "Office"| Building == "Classroom"| Building == "Others") %>%
-  # filter(Ventilation =="Air Conditioned" | Ventilation =="Naturally Ventilated" | Ventilation =="Mixed Mode")
-  filter(Ventilation =="Air Conditioned") %>%  #Just try AC office here %>%
+  # filter(Ventilation =="Air Conditioned" | Ventilation =="Naturally Ventilated") %>%
+  # filter(Ventilation =="Air Conditioned") %>%  #Just try AC office here %>%
 # filter(Ventilation =="Naturally Ventilated")#Just try NV office here
 # filter(Ventilation =="Mixed Mode")#Just try NV office here
-  filter(Climate =="A")
-
-# db <- subset(db, Acc_sen != "Unacc_neu")
+  # filter(Climate =="A") %>%
+  filter(Acc_sen != "Unacc_neu")
+db$Acc_sen <- factor(db$Acc_sen)
 
 ggplot(db, aes(x=Sensation)) + geom_bar(aes(fill=Acc))
 
@@ -185,8 +185,7 @@ require(reshape2)
 require(rms)
 
 db <- db %>%
-  filter(Ta != "NA") %>%
-  filter(Acc_sen != "Unacc_neu")
+  filter(Ta != "NA") 
 model.olr.full <- polr(Acc_sen ~ Ta, data = db, Hess = TRUE, method = "logistic")
 summary(model.olr.full)
 
@@ -213,6 +212,11 @@ db_cli_vent_Ta <- db_1 %>%
   filter(Building == "Office") %>%
   filter(Ventilation =="Air Conditioned" | Ventilation == "Naturally Ventilated") %>%
   filter(Climate =="A" | Climate == "C")
+db_cli_vent_Ta$Acc_sen <- factor(db_cli_vent_Ta$Acc_sen)
+db_cli_vent_Ta$Ventilation <- factor(db_cli_vent_Ta$Ventilation)
+db_cli_vent_Ta$Climate <- factor(db_cli_vent_Ta$Climate)
+
+acc_sen.colors <- c(Unacc_cool="cornflowerblue", Acc_cool="lightblue1", Unacc_warm="brown", Acc_warm="lightpink", Acc_neu="palegreen", Unacc_neu="grey")
 
 p3 <- ggplot(db_cli_vent_Ta, aes(Ta, order=Acc_sen))+ geom_bar(aes(fill=Acc_sen),  binwidth=1, position="fill", alpha=0.7) +
   # xlim(15,31)+
@@ -242,6 +246,11 @@ newdat <- data.frame(
   Ventilation = rep(c("Air Conditioned","Naturally Ventilated"), 200),
   Climate = rep(c("A","C"), each = 200),
   Ta = rep(seq(from = 15, to = 35, length.out = 100), 4))
+newdat $Ventilation <- as.factor(as.character(newdat $Ventilation))
+newdat $Climate <- as.factor(as.character(newdat $Climate))
+newdat $Ta <- as.numeric(as.character(newdat $Ta))
+
+
 newdat_1 <- cbind(newdat, predict(model.olr.2, newdat, type = "probs"))
 lnewdat <- melt(newdat_1, id.vars = c("Ta","Ventilation","Climate"), variable.name = "Level", value.name="Probability")
 head(lnewdat)
