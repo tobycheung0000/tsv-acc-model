@@ -152,8 +152,6 @@ db_1 <- transform(db_1,
                 Acc_sen = factor(
                   Acc_sen, levels=c("Unacc_cool","Acc_cool","Acc_neu","Acc_warm","Unacc_warm"), ordered=TRUE))
 
-acc_sen.colors <- c(Unacc_cool="cornflowerblue", Acc_cool="lightblue1", Unacc_warm="brown", Acc_warm="lightpink", Acc_neu="palegreen")
-
 source("fixed-polr.R")
 
 save(db_1, file = "TSV-ACC-model.RData")
@@ -190,8 +188,6 @@ library(mgcv)
 library(caret)
 library(gridExtra)
 
-str(db_1)
-
 db <- db_1 %>%
   filter(Building == "Office") %>%
   # filter(Building == "Office"| Building == "Classroom"| Building == "Others") %>%
@@ -203,6 +199,7 @@ db <- db_1 %>%
 
 db <- subset(db, Acc_sen != "Unacc_neu")
 
+acc_sen.colors <- c(Unacc_cool="cornflowerblue", Acc_cool="lightblue1", Unacc_warm="brown", Acc_warm="lightpink", Acc_neu="palegreen")
 p1 <- ggplot(db, aes(Ta, order=Acc_sen))+ geom_bar(aes(fill=Acc_sen),  binwidth=1, position="fill", alpha=0.7) +
   # xlim(15,31)+
   theme(axis.text.x=element_text(size=7, hjust=0.6, colour="black"), panel.grid.major=element_blank(), panel.grid.minor=element_blank(), panel.background=element_rect(fill='white',colour='black'))+

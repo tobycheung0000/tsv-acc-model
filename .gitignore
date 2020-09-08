@@ -4,6 +4,8 @@
 # Created by https://www.toptal.com/developers/gitignore/api/r
 # Edit at https://www.toptal.com/developers/gitignore?templates=r
 
+DatabaseI&II_20180703.csv
+
 ### R ###
 # History files
 .Rhistory
